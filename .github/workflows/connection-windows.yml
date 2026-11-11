@@ -1,8 +1,15 @@
 name: RustDesk Windows connection diagnostic build
 'on':
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      reuse_verified_bridge:
+        description: Reuse the verified baseline bridge for the exact diagnostic source only (expires with its artifact)
+        type: boolean
+        required: false
+        default: false
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: rustdesk-core-${{ github.ref }}
   cancel-in-progress: true
@@ -19,6 +26,7 @@ env:
   TAG_NAME: ${{ github.sha }}
 jobs:
   generate-bridge:
+    if: ${{ !inputs.reuse_verified_bridge }}
     uses: ./.github/workflows/bridge.yml
   build-RustDeskTempTopMostWindow:
     uses: ./.github/workflows/third-party-RustDeskTempTopMostWindow.yml
@@ -30,6 +38,7 @@ jobs:
       target_version: Windows10
   build-for-windows-flutter:
     name: ${{ matrix.job.target }}
+    if: ${{ !cancelled() && needs.build-RustDeskTempTopMostWindow.result == 'success' && (needs.generate-bridge.result == 'success' || (inputs.reuse_verified_bridge && needs.generate-bridge.result == 'skipped')) }}
     needs:
     - build-RustDeskTempTopMostWindow
     - generate-bridge
@@ -56,11 +65,23 @@ jobs:
       with:
         submodules: recursive
         persist-credentials: false
+    - name: Verify source before reusing the baseline bridge
+      if: ${{ inputs.reuse_verified_bridge }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        BASELINE=b4f03385666c7560183cdde95deda18da3355ce8
+        git fetch --no-tags --depth=1 origin "$BASELINE"
+        test "$(git rev-parse HEAD:src/client/io_loop.rs)" = c5fbc865c81e767646472d53a8e6db7808f9ad55
+        git diff --exit-code "$BASELINE" HEAD -- . ':!.github/workflows/connection-windows.yml' ':!src/client/io_loop.rs'
     - name: Restore bridge files
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:
         name: ${{ matrix.job.arch == 'aarch64' && 'bridge-artifact-flutter-3.44' || 'bridge-artifact' }}
         path: ./
+        github-token: ${{ github.token }}
+        repository: ${{ github.repository }}
+        run-id: ${{ inputs.reuse_verified_bridge && '43030010527' || github.run_id }}
     - name: Install LLVM and Clang
       uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
       with:
