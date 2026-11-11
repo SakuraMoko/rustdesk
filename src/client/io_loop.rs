@@ -1577,6 +1577,10 @@ impl<T: InvokeUiSession> Remote<T> {
         let Some(min_decode_fps) = min_decode_fps else {
             return;
         };
+        hbb_common::throttled_log!(
+            Duration::from_secs(5), debug,
+            "video_cadence output_fps_by_display={real_fps_map:?} decode_capacity_fps={min_decode_fps} requested_fps={custom_fps} queued_frames={max_queue_len} direct={direct}"
+        );
         let mut limited_fps = if direct {
             min_decode_fps * 9 / 10 // 30 got 27
         } else {
