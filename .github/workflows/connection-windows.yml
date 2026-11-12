@@ -20,7 +20,7 @@ env:
   FLUTTER_VERSION: 3.24.5
   VCPKG_COMMIT_ID: 9e593bb18ea69cc5095e012465dcd675a822ed0d
   VCPKG_CMAKE_VERSION: 4.3.0
-  VERSION: 1.5.1
+  VERSION: 1.5.3
   VCPKG_BINARY_SOURCES: clear;x-gha,readwrite
   UPLOAD_ARTIFACT: 'true'
   TAG_NAME: ${{ github.sha }}
@@ -169,7 +169,7 @@ jobs:
       run: |
         $commit = git rev-parse HEAD
         Copy-Item LICENCE rustdesk/LICENCE
-        @{ source = 'https://github.com/rustdesk/rustdesk'; baseline = '23e5bb471a040d62f0a6ad52591fb30784265b73'; commit = $commit; build = $env:GITHUB_RUN_ID; diagnostic_build = $true } | ConvertTo-Json | Set-Content rustdesk/source-build.json
+        @{ source = 'https://github.com/rustdesk/rustdesk'; baseline = '95cca3f661f635b3cc85c04935fe8d96d8f432ef'; commit = $commit; build = $env:GITHUB_RUN_ID; diagnostic_build = $true } | ConvertTo-Json | Set-Content rustdesk/source-build.json
     - name: Upload unsigned
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:

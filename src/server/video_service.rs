@@ -815,7 +815,21 @@ fn run(vs: VideoService) -> ResultType<()> {
 
         let time = now - start;
         let ms = (time.as_secs() * 1000 + time.subsec_millis() as u64) as i64;
-        let res = match c.frame(spf) {
+        #[cfg(windows)]
+        let capture_gdi = c.is_gdi();
+        #[cfg(windows)]
+        let capture_started = Instant::now();
+        let captured = c.frame(spf);
+        #[cfg(windows)]
+        if capture_started.elapsed() >= Duration::from_millis(500) {
+            hbb_common::throttled_log!(
+                Duration::from_secs(5), warn,
+                "video_capture_stall display={display_idx} wait_ms={} gdi={}",
+                capture_started.elapsed().as_millis(),
+                capture_gdi,
+            );
+        }
+        let res = match captured {
             Ok(frame) => {
                 repeat_encode_counter = 0;
                 if frame.valid() {
@@ -866,6 +880,8 @@ fn run(vs: VideoService) -> ResultType<()> {
                         }
                     }
 
+                    #[cfg(windows)]
+                    let encode_started = Instant::now();
                     let frame = frame.to(encoder.yuvfmt(), &mut yuv, &mut mid_data)?;
                     static_refresh.on_frame(&frame);
                     let result = handle_one_frame(
@@ -881,6 +897,15 @@ fn run(vs: VideoService) -> ResultType<()> {
                         capture_width,
                         capture_height,
                     )?;
+                    #[cfg(windows)]
+                    if encode_started.elapsed() >= Duration::from_millis(500) {
+                        hbb_common::throttled_log!(
+                            Duration::from_secs(5), warn,
+                            "video_encode_path_stall display={display_idx} wait_ms={} hardware={}",
+                            encode_started.elapsed().as_millis(),
+                            encoder.is_hardware(),
+                        );
+                    }
                     static_refresh.on_frame_encoded(&result);
                     frame_controller.set_send(now, result.send_conn_ids);
                     send_counter += 1;
@@ -1018,6 +1043,16 @@ fn run(vs: VideoService) -> ResultType<()> {
             if fetched_conn_ids.len() >= frame_controller.send_conn_ids.len() {
                 break;
             }
+        }
+        #[cfg(windows)]
+        if wait_begin.elapsed() >= Duration::from_millis(500) {
+            hbb_common::throttled_log!(
+                Duration::from_secs(5), warn,
+                "video_ack_stall display={display_idx} wait_ms={} pending={} viewers={}",
+                wait_begin.elapsed().as_millis(),
+                frame_controller.send_conn_ids.difference(&fetched_conn_ids).count(),
+                frame_controller.send_conn_ids.len(),
+            );
         }
         DISPLAY_CONN_IDS.lock().unwrap().remove(&display_idx);
 
